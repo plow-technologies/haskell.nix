@@ -8,7 +8,9 @@ let
 
   flatDepends = component:
     let
-      makePairs = map (p: rec { key="${val}"; val=(p.components.library or p); });
+      makePairs = map (p: if builtins.hasAttr p.components library
+                          then { key="${p.components.library}"; val=p.components.library; }
+                          else { key="${p.name}";               val=p; });
       closure = builtins.genericClosure {
         startSet = makePairs component.depends;
         operator = {val,...}: makePairs val.config.depends;
