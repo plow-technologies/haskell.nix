@@ -252,7 +252,7 @@ stdenv.mkDerivation ({
   prePatch = if (cabalFile != null)
      then ''cat ${cabalFile} > ${package.identifier.name}.cabal''
      else lib.optionalString (cabal-generator == "hpack") ''
-       ${hsPkgs.hpack.components.exes.hpack}/bin/hpack
+       ${hsPkgs.buildPackages.hpack.components.exes.hpack}/bin/hpack
      '';
 
   configurePhase = ''
