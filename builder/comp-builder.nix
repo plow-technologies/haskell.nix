@@ -23,7 +23,7 @@
 , doCheck ? component.doCheck || haskellLib.isTest componentId
 , doCrossCheck ? component.doCrossCheck || false
 , dontPatchELF ? true
-, dontStrip ? true
+, dontStrip ? component.dontStrip or true
 
 , static ? stdenv.hostPlatform.isMusl
 , deadCodeElimination ? true

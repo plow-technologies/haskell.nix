@@ -68,6 +68,11 @@ let
             type = bool;
             default = (def.doCrossCheck or false);
           };
+          dontStrip = mkOption {
+            type = bool;
+            description = "Disable stripping of executables";
+            default = (def.dontStrip or false);
+          };
           doHaddock = mkOption {
             description = "Enable building of the Haddock documentation from the annotated Haskell source code.";
             type = bool;
