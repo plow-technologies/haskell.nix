@@ -77,12 +77,17 @@ with types;
       buildType = mkOption {
         type = str;
       };
+
+      setup-depends = mkOption {
+        type = listOfFilteringNulls unspecified;
+        default = [];
+      };
     };
 
     components = let
       componentType = submodule {
         # add the shared componentOptions
-        options = (componentOptions config) // {
+        options = (packageOptions config) // {
           depends = mkOption {
             type = listOfFilteringNulls unspecified;
             default = [];

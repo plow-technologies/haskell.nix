@@ -1,7 +1,8 @@
-{ pkgs ? import nixpkgs {}
+{ pkgs ? import nixpkgs nixpkgsArgs
 # Use a pinned nixpkgs rather than the one on NIX_PATH
 , nixpkgs ? ./nixpkgs
-
+# Provide args to the nixpkgs instantiation.
+, nixpkgsArgs ? {}
 # You can provide different pins for hackage.nix and stackage.nix if required.
 # It's also possible to override these sources with NIX_PATH.
 , hackageSourceJSON ? ./hackage-src.json
@@ -38,24 +39,28 @@ let
   # overridden with NIX_PATH.
   fetchExternal = import ./lib/fetch-external.nix;
 
-  mkHackageIndex = indexState: import ./lib/hackageIndex.nix {
-    inherit (pkgs) runCommand cabal-install;
-    inherit indexState;
-  };
+  # Function for cleaning haskell source directories pulled from iohk-nix
+  cleanSourceHaskell = pkgs.callPackage ./lib/clean-source-haskell.nix {};
 
   # All packages from Hackage as Nix expressions
-  hackage = import (fetchExternal {
+  hackageSrc = fetchExternal {
     name     = "hackage-exprs-source";
     specJSON = hackageSourceJSON;
     override = "hackage";
-  });
+  };
+  hackage = import hackageSrc;
+
+  # Contains the hashes of the cabal 01-index.tar.gz for given
+  # index states.  Starting from April 1st 2019.
+  indexStateHashesPath = hackageSrc + "/index-state-hashes.nix";
 
   # The set of all Stackage snapshots
-  stackage = import (fetchExternal {
+  stackageSrc = fetchExternal {
     name     = "stackage-snapshot-source";
     specJSON = stackageSourceJSON;
     override = "stackage";
-  });
+  };
+  stackage = import stackageSrc;
 
   packages = pkgs: self: (rec {
     inherit pkgs; # Make pkgs available via callPackage
@@ -115,36 +120,81 @@ let
         modules = [ ghcHackagePatches.${compiler.nix-name} ] ++ modules;
       };
 
+    # Package sets for all stackage snapshots.
+    snapshots = self.callPackage ./snapshots.nix {};
+    # Pick a recent LTS snapshot to be our "default" package set.
+    haskellPackages = self.snapshots."lts-13.18";
+
     # Programs for generating Nix expressions from Cabal and Stack
-    # files.
-    nix-tools = self.callPackage ./nix-tools { inherit fetchExternal; };
+    # files. We need to make sure we build this from the buildPackages,
+    # we never want to actually cross compile nix-tools on it's own.
+    nix-tools = pkgs.buildPackages.callPackage ./nix-tools {
+      inherit fetchExternal cleanSourceHaskell;
+      hpack = pkgs.buildPackages.haskell.lib.justStaticExecutables
+        (pkgs.buildPackages.haskellPackages.hpack);
+      inherit (self) mkCabalProjectPkgSet;
+    };
 
     # Function to call stackToNix
     callStackToNix = buildPackages.callPackage ./call-stack-to-nix.nix {};
 
     # Snapshots of Hackage and Stackage, converted to Nix expressions,
     # regularly updated.
+    inherit hackageSrc stackageSrc;
     inherit hackage stackage;
-
-    # Scripts for keeping Hackage and Stackage up to date.
-    maintainer-scripts = {
-      update-hackage = self.callPackage ./scripts/update-hackage.nix {};
-      update-stackage = self.callPackage ./scripts/update-stackage.nix {};
-      update-pins = self.callPackage ./scripts/update-pins.nix {};
-    };
+    inherit indexStateHashesPath;
 
     # Make this handy overridable fetch function available.
     inherit fetchExternal;
 
+    # Function for cleaning haskell source diretories.
+    inherit cleanSourceHaskell;
+
+    # Produce a fixed output derivation from a moving target (hackage index tarball)
+    hackageTarball = { index-state, sha256 }:
+      assert sha256 != null;
+      pkgs.fetchurl {
+        name = "01-index.tar.gz-at-${builtins.replaceStrings [":"] [""] index-state}";
+        url = "https://hackage.haskell.org/01-index.tar.gz";
+        downloadToTemp = true;
+        postFetch = "${self.nix-tools}/bin/truncate-index -o $out -i $downloadedFile -s ${index-state}";
+
+        outputHashAlgo = "sha256";
+        outputHash = sha256;
+      };
+
+    mkLocalHackageRepo = import ./mk-local-hackage-repo { inherit (self) hackageTarball; inherit pkgs; };
+
+    dotCabal = { index-state, sha256 }@args:
+      pkgs.runCommand "dot-cabal-at-${builtins.replaceStrings [":"] [""] index-state}" { nativeBuildInputs = [ pkgs.cabal-install ]; } ''
+        mkdir -p $out/.cabal
+        cat <<EOF > $out/.cabal/config
+        repository cached
+          url: file:${self.mkLocalHackageRepo args}
+          secure: True
+          root-keys:
+          key-threshold: 0
+        EOF
+        mkdir -p $out/.cabal/packages/cached
+        HOME=$out cabal new-update cached
+      '';
+
+    update-index-state-hashes = self.callPackage ./scripts/update-index-state-hashes.nix {};
+
     # Takes a haskell src directory runs cabal new-configure and plan-to-nix.
     # Resulting nix files are added to nix-plan subdirectory.
     callCabalProjectToNix = import ./lib/cabalProjectToNix.nix {
-      inherit mkHackageIndex;
+      index-state-hashes = import indexStateHashesPath;
+      inherit (self) dotCabal;
       inherit pkgs;
-      inherit (pkgs) runCommand cabal-install ghc;
+      inherit (pkgs) runCommand cabal-install ghc symlinkJoin cacert;
       inherit (pkgs.haskellPackages) hpack;
       inherit (self) nix-tools;
-      inherit (pkgs) symlinkJoin;
+    };
+
+    # References to the unpacked sources, for caching in a Hydra jobset.
+    source-pins = self.callPackage ./lib/make-source-pins.nix {
+      sources = [ hackageSrc stackageSrc pkgs.path ];
     };
   });
 

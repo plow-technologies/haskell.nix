@@ -19,6 +19,7 @@ with haskellLib;
   foldComponents = tys: f: z: conf:
     let
       comps = conf.components or {};
+      # ensure that comps.library exists and is not null.
       libComp = acc: if (comps.library or null) != null then f comps.library acc else acc;
       subComps = acc:
         lib.foldr
@@ -80,4 +81,16 @@ with haskellLib;
     let f' = if lib.isFunction f then f else import f;
         args' = (builtins.intersectAttrs (builtins.functionArgs f') scope) // args;
     in f' args';
+
+  # Collect all (transitive) Haskell library dependencies of a
+  # component.
+  ## flatLibDepends :: Component -> [Package]
+  flatLibDepends = component:
+    let
+      makePairs = map (p: rec { key="${val}"; val=(p.components.library or p); });
+      closure = builtins.genericClosure {
+        startSet = makePairs component.depends;
+        operator = {val,...}: makePairs val.config.depends;
+      };
+    in map ({val,...}: val) closure;
 }

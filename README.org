@@ -2,8 +2,8 @@
 
 * Alternative Haskell Infrastructure for Nixpkgs
 
-[[https://travis-ci.org/input-output-hk/haskell.nix][https://travis-ci.org/input-output-hk/haskell.nix.svg?branch=master]]
-[[https://buildkite.com/input-output-hk/haskell-dot-nix][https://badge.buildkite.com/d453edcd29bd2f8f3f3b32c9b7d6777a33773d9671c37a6ccc.svg]]
+[[https://buildkite.com/input-output-hk/haskell-dot-nix][https://badge.buildkite.com/d453edcd29bd2f8f3f3b32c9b7d6777a33773d9671c37a6ccc.svg?branch=master]]
+[[https://buildkite.com/input-output-hk/haskell-dot-nix-nightly-updates][https://img.shields.io/buildkite/c8d5a20d3ff0f440f82adb9190b43c16c91e5e47e8adfa867a/master.svg?label=nightly%20updates]]
 
 =haskell.nix= is an experimental new builder for Haskell packages.
 
@@ -19,7 +19,7 @@ This will download and build =nix-tools=.
 
 #+begin_src sh
 nix build -f https://github.com/input-output-hk/haskell.nix/archive/master.tar.gz nix-tools -o nt
-./nt/bin/cabal-to-nix --help
+./nt/bin/stack-to-nix
 #+end_src
 
 ** Related repos
