@@ -78,6 +78,11 @@ let
             type = unspecified; # Can be either a string or a function
             default = (def.shellHook or "");
           };
+          buildInputs = mkOption {
+            description = "Extra build inputs";
+            type = listOf string;
+            default = [];
+          };
     enableLibraryProfiling = mkOption {
       type = bool;
       default = (def.enableLibraryProfiling or false);

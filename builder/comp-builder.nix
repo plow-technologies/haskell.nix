@@ -146,7 +146,8 @@ stdenv.mkDerivation ({
     ++ builtins.concatLists component.pkgconfig
     # Note: This is a hack until we can fix properly. See:
     # https://github.com/haskell-gi/haskell-gi/issues/226
-    ++ lib.optional (lib.strings.hasPrefix "gi-" fullName) gobject-introspection;
+    ++ lib.optional (lib.strings.hasPrefix "gi-" fullName) gobject-introspection
+    ++ component.buildInputs;
 
   nativeBuildInputs =
     [shellWrappers buildPackages.removeReferencesTo]
