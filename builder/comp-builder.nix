@@ -392,7 +392,7 @@ let
       (lib.optionalString stdenv.hostPlatform.isWindows ''
         export pkgsHostTargetAsString="''${pkgsHostTarget[@]}"
       '') +
-      (if stdenv.hostPlatform.isGhcjs then ''
+      (if (stdenv.hostPlatform.isGhcjs || stdenv.hostPlatform.isAarch32) then ''
         runHook preBuild
         # https://gitlab.haskell.org/ghc/ghc/issues/9221
         $SETUP_HS build ${haskellLib.componentTarget componentId} ${lib.concatStringsSep " " setupBuildFlags}
