@@ -41,7 +41,7 @@ let
     private = url: pkgs.lib.substring 0 4 url != "http";
 
     repos = builtins.fromJSON (builtins.readFile (pkgs.runCommand "stack-repos" {
-        buildInputs = [ nix-tools ];
+        buildInputs = [ builtins.trace "trace" nix-tools ];
       } ''
         TMP=$(mktemp -d)
         cd $TMP
