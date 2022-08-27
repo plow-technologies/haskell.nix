@@ -80,8 +80,12 @@ concatMap (dep:
                   inherit (dep) url rev;
                   inherit sha256;
                 }
-                else builtins.fetchGit {
-                  inherit (dep) url rev;
+              else let rev = "refs/${dep.rev}";
+                   in  builtins.fetchGit {
+                     url = dep.url;
+                     rev = dep.rev;
+                     allRefs = true;
+                     
                 };
         in map (subdir: {
                 name = cabalName "${pkgsrc}/${subdir}";
