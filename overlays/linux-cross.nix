@@ -14,6 +14,7 @@ in
 { stdenv
 , lib
 , writeScriptBin
+, runCommandLocal
 , qemu
 , qemuSuffix ? (qemuByHostPlatform hostPlatform)
 , iserv-proxy
@@ -28,7 +29,7 @@ let
 
   # we want this to hold only for arm (32 and 64bit) for now.
   isLinuxCross = buildPlatform != hostPlatform && hostPlatform.isLinux && (hostPlatform.isAarch32 || hostPlatform.isAarch64);
-  qemuIservWrapper = writeScriptBin "iserv-wrapper" ''
+  qemuIservWrapperPlain = writeScriptBin "iserv-wrapper" ''
     #!${stdenv.shell}
     set -euo pipefail
     # Unset configure flags as configure should have run already
@@ -41,6 +42,12 @@ let
     ${iserv-proxy}/bin/iserv-proxy $@ 127.0.0.1 "$PORT"
     (>&2 echo "---> killing remote-iserve...")
     kill $RISERV_PID
+    '';
+  qemuIservWrapper = runCommandLocal "qemuIservWrapper" {} ''
+    mkdir -p $out/bin
+    ln -s ${qemuIservWrapperPlain}/bin/iserv-wrapper $out/bin/iserv-wrapper
+    ln -s ${qemuIservWrapperPlain}/bin/iserv-wrapper $out/bin/iserv-wrapper-dyn
+    ln -s ${qemuIservWrapperPlain}/bin/iserv-wrapper $out/bin/iserv-wrapper-prof
     '';
   configureFlags = lib.optional hostPlatform.isAarch32 "--disable-split-sections";
   setupBuildFlags = map (opt: "--ghc-option=" + opt) ((lib.optionals isLinuxCross

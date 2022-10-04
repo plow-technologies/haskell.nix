@@ -6,7 +6,7 @@ final: prev:
       let
         withTH = import ./linux-cross.nix {
           inherit (pkgs.stdenv) hostPlatform buildPlatform;
-          inherit (pkgs) stdenv lib writeScriptBin;
+          inherit (pkgs) stdenv lib writeScriptBin runCommandLocal;
           # qemu for linux
           qemu = pkgs.buildPackages.qemu;
 
