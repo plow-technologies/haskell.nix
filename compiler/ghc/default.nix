@@ -48,7 +48,7 @@ let self =
 
 , enableTerminfo ?
     # Terminfo does not work on older ghc cross arm and windows compilers
-     (!haskell-nix.haskellLib.isCrossTarget || !(stdenv.targetPlatform.isAarch64 || stdenv.targetPlatform.isWindows) || builtins.compareVersions ghc-version "8.10" >= 0)
+     (!haskell-nix.haskellLib.isCrossTarget || !(stdenv.targetPlatform.isAarch64 || stdenv.targetPlatform.isAarch32 || stdenv.targetPlatform.isWindows) || builtins.compareVersions ghc-version "8.10" >= 0)
 
 , # Wheter to build in NUMA support
   enableNUMA ? true
@@ -175,7 +175,7 @@ let
     ++ lib.optional (platform.libc != "glibc" && !targetPlatform.isWindows) libiconv
     ++ lib.optional (enableNUMA && platform.isLinux && !platform.isAarch32 && !platform.isAndroid) numactl
     # Even with terminfo disabled some older ghc cross arm and windows compilers do not build unless `ncurses` is found and they seem to want the buildPlatform version
-    ++ lib.optional (!enableTerminfo && haskell-nix.haskellLib.isCrossTarget && (stdenv.targetPlatform.isAarch64 || stdenv.targetPlatform.isWindows) && builtins.compareVersions ghc-version "8.10" < 0) ncurses.dev;
+    ++ lib.optional (!enableTerminfo && haskell-nix.haskellLib.isCrossTarget && (stdenv.targetPlatform.isAarch32 || stdenv.targetPlatform.isAarch64 || stdenv.targetPlatform.isWindows) && builtins.compareVersions ghc-version "8.10" < 0) ncurses.dev;
 
   toolsForTarget =
     if hostPlatform == buildPlatform then
