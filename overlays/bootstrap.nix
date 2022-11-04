@@ -190,7 +190,7 @@ in {
                 ++ final.lib.optional (versionAtLeast "9.2.1"  && versionLessThan "9.3" && final.targetPlatform.isAarch64) ./patches/ghc/ghc-9.2-3434.patch
 
                 ++ from      "8.10.1"          ./patches/ghc/ghc-acrt-iob-func.patch
-                ++ from      "8.10.1"          ./patches/ghc/ghc-mprotect-nonzero-len.patch
+                ++ fromUntil "8.10.1" "9.2"    ./patches/ghc/ghc-mprotect-nonzero-len.patch
 
                 ++ fromUntil "8.10.1" "8.10.3" ./patches/ghc/ghc-8.10-ubxt.patch
                 ++ fromUntil "8.10.3" "8.10.5" ./patches/ghc/ghc-8.10.3-ubxt.patch
@@ -220,6 +220,7 @@ in {
 
                 # the following is a partial reversal of https://gitlab.haskell.org/ghc/ghc/-/merge_requests/4391, to address haskell.nix#1227
                 ++ final.lib.optional (versionAtLeast "8.10" && versionLessThan "9.0" && final.targetPlatform.isAarch64) ./patches/ghc/mmap-next.patch
+                ++ final.lib.optional (versionAtLeast "9.2"  &&                          final.targetPlatform.isAarch64) ./patches/ghc/mmap-next-9.0.patch
                 ++ final.lib.optional (versionAtLeast "8.10" && versionLessThan "9.0" && final.targetPlatform.isAndroid) ./patches/ghc/rts-android-jemalloc-qemu.patch
                 ++ final.lib.optional (versionAtLeast "8.10" && versionLessThan "9.0" && final.targetPlatform.isAndroid) ./patches/ghc/stack-protector-symbols.patch
                 ++ final.lib.optional (versionAtLeast "8.10" && versionLessThan "9.0" && final.targetPlatform.isAndroid) ./patches/ghc/libraries-prim-os-android.patch

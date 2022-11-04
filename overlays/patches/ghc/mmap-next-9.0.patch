@@ -1,0 +1,139 @@
+diff -ur ghc-9.2.4.orig/rts/Linker.c ghc-9.2.4/rts/Linker.c
+--- ghc-9.2.4.orig/rts/Linker.c	2022-07-27 09:27:59.000000000 +0200
++++ ghc-9.2.4/rts/Linker.c	2022-11-04 15:29:26.723129681 +0100
+@@ -1138,6 +1138,48 @@
+ }
+ 
+ #elif RTS_LINKER_USE_MMAP
++
++/* -----------------------------------------------------------------------------
++   Occationally we depend on mmap'd region being close to already mmap'd regions.
++
++   Our static in-memory linker may be restricted by the architectures relocation
++   range. E.g. aarch64 has a +-4GB range for PIC code, thus we'd preferrably
++   get memory for the linker close to existing mappings.  mmap on it's own is
++   free to return any memory location, independent of what the preferred
++   location argument indicates.
++
++   For example mmap (via qemu) might give you addresses all over the available
++   memory range if the requested location is already occupied.
++
++   mmap_next will do a linear search from the start page upwards to find a
++   suitable location that is as close as possible to the locations (proivded
++   via the first argument).
++   -------------------------------------------------------------------------- */
++
++void*
++mmap_next(void *addr, size_t length, int prot, int flags, int fd, off_t offset) {
++#if defined(aarch64_TARGET_ARCH) || defined(aarch64_HOST_ARCH)
++  if(addr == NULL) return mmap(addr, length, prot, flags, fd, offset);
++  // we are going to look for up to pageSize * 1024 * 1024 (4GB) from the
++  // address.
++  size_t pageSize = getPageSize();
++  for(int i = (uintptr_t)addr & (pageSize-1) ? 1 : 0; i < 1024*1024; i++) {
++    void *target = (void*)(((uintptr_t)addr & ~(pageSize-1))+(i*pageSize));
++    void *mem = mmap(target, length, prot, flags, fd, offset);
++    if (mem == target) {
++      return mem;
++    } else {
++      if (mem != MAP_FAILED) munmap(mem, length);
++      IF_DEBUG(linker && (i % 1024 == 0),
++        debugBelch("mmap_next failed to find suitable space in %p - %p\n", addr, target));
++    }
++  }
++  return MAP_FAILED;
++#else
++  return mmap(addr, length, prot, flags, fd, offset);
++#endif
++}
++
+ //
+ // Returns NULL on failure.
+ //
+@@ -1155,13 +1197,11 @@
+    IF_DEBUG(linker, debugBelch("mmapForLinker: start\n"));
+    size = roundUpToPage(bytes);
+ 
+-#if defined(MAP_LOW_MEM)
++#if defined(MAP_LOW_MEM) || defined(aarch64_TARGET_ARCH) || defined(aarch64_HOST_ARCH)
+ mmap_again:
+ #endif
+ 
+-   if (mmap_32bit_base != NULL) {
+-       map_addr = mmap_32bit_base;
+-   }
++   map_addr = mmap_32bit_base;
+ 
+    IF_DEBUG(linker,
+             debugBelch("mmapForLinker: \tprotection %#0x\n", prot));
+@@ -1171,10 +1211,14 @@
+    IF_DEBUG(linker,
+             debugBelch("mmapForLinker: \tsize       %#0zx\n", bytes));
+    IF_DEBUG(linker,
++            debugBelch("mmapForLinker: \tmmap_32bit_base   %p\n", mmap_32bit_base));
++   IF_DEBUG(linker,
+             debugBelch("mmapForLinker: \tmap_addr   %p\n", map_addr));
+ 
+-   result = mmap(map_addr, size, prot,
+-                 MAP_PRIVATE|tryMap32Bit|fixed|flags, fd, offset);
++   result = mmap_next(map_addr, size, prot,
++                      MAP_PRIVATE|tryMap32Bit|fixed|flags, fd, offset);
++   IF_DEBUG(linker,
++            debugBelch("mmapForLinker: \tresult   %p\n", result));
+ 
+    if (result == MAP_FAILED) {
+        sysErrorBelch("mmap %" FMT_Word " bytes at %p",(W_)size,map_addr);
+@@ -1219,8 +1263,8 @@
+                       bytes, result);
+            munmap(result, size);
+ 
+-           // Set a base address and try again... (guess: 1Gb)
+-           mmap_32bit_base = (void*)0x40000000;
++           // Set a base address and try again...
++           mmap_32bit_base = MMAP_32BIT_BASE_DEFAULT;
+            goto mmap_again;
+        }
+    }
+@@ -1242,11 +1286,9 @@
+     }
+ #endif
+ 
+-    if (mmap_32bit_base != NULL) {
+-       // Next time, ask for memory right after our new mapping to maximize the
+-       // chance that we get low memory.
+-        mmap_32bit_base = (void*) ((uintptr_t)result + size);
+-    }
++    // Next time, ask for memory right after our new mapping to maximize the
++    // chance that we get low memory.
++    mmap_32bit_base = (void*) ((uintptr_t)result + size);
+ 
+     IF_DEBUG(linker,
+             debugBelch("mmapForLinker: mapped %" FMT_Word
+@@ -1296,6 +1338,7 @@
+  *
+  */
+ 
++
+ /*
+  * Mark an portion of a mapping previously reserved by mmapForLinker
+  * as executable (but not writable).
+@@ -1307,7 +1350,7 @@
+     }
+     IF_DEBUG(linker,
+              debugBelch("mmapForLinkerMarkExecutable: protecting %" FMT_Word
+-                        " bytes starting at %p\n", (W_)len, start));
++                        " bytes starting at %p", (W_)len, start));
+     if (mprotect(start, len, PROT_READ|PROT_EXEC) == -1) {
+        barf("mmapForLinkerMarkExecutable: mprotect: %s\n", strerror(errno));
+     }
+diff -ur ghc-9.2.4.orig/rts/LinkerInternals.h ghc-9.2.4/rts/LinkerInternals.h
+--- ghc-9.2.4.orig/rts/LinkerInternals.h	2022-07-27 09:27:59.000000000 +0200
++++ ghc-9.2.4/rts/LinkerInternals.h	2022-11-03 17:46:50.901092561 +0100
+@@ -14,6 +14,7 @@
+ 
+ #if RTS_LINKER_USE_MMAP
+ #include <sys/mman.h>
++void* mmap_next(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+ #endif
+ 
+ void printLoadedObjects(void);

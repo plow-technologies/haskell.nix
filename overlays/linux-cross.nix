@@ -26,6 +26,14 @@ in
 }:
 let
 
+  remote-iserv-exe = remote-iserv.override {
+    setupBuildFlags =
+         (lib.optional hostPlatform.isAndroid ["--ghc-option=-optl-static" ])
+         ++ [
+           "--ghc-option=-optl-lgcc_s"
+         ];
+    };
+
   # we want this to hold only for arm (32 and 64bit) for now.
   isLinuxCross = buildPlatform != hostPlatform && hostPlatform.isLinux && (hostPlatform.isAarch32 || hostPlatform.isAarch64);
   qemuIservWrapper = writeScriptBin "iserv-wrapper" ''
@@ -35,7 +43,7 @@ let
     unset configureFlags
     PORT=$((5000 + $RANDOM % 5000))
     (>&2 echo "---> Starting remote-iserv on port $PORT")
-    ${qemu}/bin/qemu-${qemuSuffix} ${remote-iserv.override (lib.optionalAttrs hostPlatform.isAndroid { setupBuildFlags = ["--ghc-option=-optl-static" ];})}/bin/remote-iserv tmp $PORT &
+    ${qemu}/bin/qemu-${qemuSuffix} ${remote-iserv-exe}/bin/remote-iserv tmp $PORT &
     (>&2 echo "---| remote-iserv should have started on $PORT")
     RISERV_PID="$!"
     ${iserv-proxy}/bin/iserv-proxy $@ 127.0.0.1 "$PORT"
