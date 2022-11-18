@@ -210,6 +210,12 @@ let
       "--disable-executable-dynamic"
       "--ghc-option=-optl=-pthread"
       "--ghc-option=-optl=-static"
+    ] ++ lib.optionals (with stdenv;
+        buildPlatform != hostPlatform &&
+        hostPlatform.isLinux &&
+        (hostPlatform.isAarch32 || hostPlatform.isAarch64) &&
+        (haskellLib.isExecutableType componentId)) [
+      "--ghc-option=-optl=-lgcc_s"
     ] ++ lib.optional enableSeparateDataOutput "--datadir=$data/share/${ghc.name}"
       ++ lib.optional (enableLibraryProfiling || enableProfiling) "--profiling-detail=${profilingDetail}"
       ++ lib.optional stdenv.hostPlatform.isLinux (enableFeature enableDeadCodeElimination "split-sections")
