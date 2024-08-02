@@ -73,9 +73,11 @@ let
           else ghc;
         inherit packages hoogle;
       };
-    in haskellLib.weakCallPackage pkgs nixpkgsHoogle {
+    in (haskellLib.weakCallPackage pkgs nixpkgsHoogle {
       inherit haskellPackages;
-    } (p: p.packages);
+    } (p: p.packages)).overrideAttrs(_: {
+      __structuredAttrs = true;
+    });
 
   # Same as haskellPackages.shellFor in nixpkgs.
   shellFor = haskellLib.weakCallPackage pkgs ./shell-for.nix {
