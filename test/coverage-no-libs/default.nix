@@ -6,11 +6,6 @@ let
   projectArgs = {
     inherit evalPackages;
     src = testSrc "coverage-no-libs";
-    modules = [{
-      # Package has no exposed modules which causes
-      #   haddock: No input file(s)
-      packages.bytestring-builder.doHaddock = false;
-    }];
   };
 
   # We can easily select a different compiler when using cabal,
@@ -87,7 +82,7 @@ in recurseIntoAttrs ({
         dirExistsEmpty "$pkga_basedir/mix"
         dirExists "$pkga_basedir/tix/pkga-0.1.0.0"
         dirExists "$project_basedir/tix/all"
-      '') ([cabalProj] ++ optional (compiler-nix-name == "ghc865") stackProj))}
+      '') ([cabalProj] ++ optional (compiler-nix-name == "ghc984") stackProj))}
 
       touch $out
     '';
